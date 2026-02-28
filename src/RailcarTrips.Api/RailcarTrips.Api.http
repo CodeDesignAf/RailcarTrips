@@ -1,0 +1,6 @@
+@RailcarTrips.Api_HostAddress = http://localhost:5171
+
+GET {{RailcarTrips.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
