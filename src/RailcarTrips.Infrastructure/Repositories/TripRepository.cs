@@ -78,43 +78,87 @@ public class TripRepository : ITripRepository
         }
 
         var total = await query.CountAsync(cancellationToken);
-        var items = await query
+        var rawTrips = await query
             .OrderByDescending(x => x.StartUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(x => new TripDto(
-                x.Id,
-                x.EquipmentId,
-                x.OriginCityId,
-                x.DestinationCityId,
-                EnsureUtc(x.StartUtc),
-                x.EndUtc.HasValue ? EnsureUtc(x.EndUtc.Value) : null,
-                x.TotalTripHours,
-                x.Status,
-                x.InvalidReason))
             .ToListAsync(cancellationToken);
+
+        var cityIds = rawTrips
+            .SelectMany(trip => trip.DestinationCityId.HasValue
+                ? new[] { trip.OriginCityId, trip.DestinationCityId.Value }
+                : new[] { trip.OriginCityId })
+            .Distinct()
+            .ToArray();
+
+        var cityLookup = await _dbContext.Cities
+            .AsNoTracking()
+            .Where(city => cityIds.Contains(city.Id))
+            .ToDictionaryAsync(city => city.Id, city => city.Name, cancellationToken);
+
+        var items = rawTrips
+            .Select(trip => new TripDto(
+                trip.Id,
+                trip.EquipmentId,
+                trip.OriginCityId,
+                ResolveCityName(trip.OriginCityId, cityLookup),
+                trip.DestinationCityId,
+                trip.DestinationCityId.HasValue
+                    ? ResolveCityName(trip.DestinationCityId.Value, cityLookup)
+                    : null,
+                EnsureUtc(trip.StartUtc),
+                trip.EndUtc.HasValue ? EnsureUtc(trip.EndUtc.Value) : null,
+                trip.TotalTripHours,
+                trip.Status,
+                trip.InvalidReason))
+            .ToList();
 
         return new PagedTripsResult(items, total);
     }
 
     public async Task<TripDto?> GetByIdAsync(long tripId, CancellationToken cancellationToken = default)
     {
-        var item = await _dbContext.Trips
+        var rawTrip = await _dbContext.Trips
             .AsNoTracking()
-            .Where(x => x.Id == tripId)
-            .Select(x => new TripDto(
-                x.Id,
-                x.EquipmentId,
-                x.OriginCityId,
-                x.DestinationCityId,
-                EnsureUtc(x.StartUtc),
-                x.EndUtc.HasValue ? EnsureUtc(x.EndUtc.Value) : null,
-                x.TotalTripHours,
-                x.Status,
-                x.InvalidReason))
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == tripId, cancellationToken);
+
+        if (rawTrip is null)
+        {
+            return null;
+        }
+
+        var cityIds = rawTrip.DestinationCityId.HasValue
+            ? new[] { rawTrip.OriginCityId, rawTrip.DestinationCityId.Value }
+            : new[] { rawTrip.OriginCityId };
+
+        var cityLookup = await _dbContext.Cities
+            .AsNoTracking()
+            .Where(city => cityIds.Contains(city.Id))
+            .ToDictionaryAsync(city => city.Id, city => city.Name, cancellationToken);
+
+        var item = new TripDto(
+            rawTrip.Id,
+            rawTrip.EquipmentId,
+            rawTrip.OriginCityId,
+            ResolveCityName(rawTrip.OriginCityId, cityLookup),
+            rawTrip.DestinationCityId,
+            rawTrip.DestinationCityId.HasValue
+                ? ResolveCityName(rawTrip.DestinationCityId.Value, cityLookup)
+                : null,
+            EnsureUtc(rawTrip.StartUtc),
+            rawTrip.EndUtc.HasValue ? EnsureUtc(rawTrip.EndUtc.Value) : null,
+            rawTrip.TotalTripHours,
+            rawTrip.Status,
+            rawTrip.InvalidReason);
 
         return item;
+    }
+
+    private static string ResolveCityName(int cityId, IReadOnlyDictionary<int, string> cityLookup)
+    {
+        return cityLookup.TryGetValue(cityId, out var cityName)
+            ? cityName
+            : $"City #{cityId}";
     }
 
     private static TripEntity Map(Trip trip)

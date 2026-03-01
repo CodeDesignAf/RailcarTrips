@@ -64,7 +64,7 @@ public class EquipmentEventRepository : IEquipmentEventRepository
             .ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
-        return rows.Select(Map).ToArray();
+        return await MapWithCityNamesAsync(rows, cancellationToken);
     }
 
     public async Task<IReadOnlyList<EquipmentEventDto>> GetByTripIdAsync(
@@ -94,19 +94,34 @@ public class EquipmentEventRepository : IEquipmentEventRepository
             .ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
-        return rows.Select(Map).ToArray();
+        return await MapWithCityNamesAsync(rows, cancellationToken);
     }
 
-    private static EquipmentEventDto Map(EquipmentEventEntity entity)
+    private async Task<IReadOnlyList<EquipmentEventDto>> MapWithCityNamesAsync(
+        IReadOnlyCollection<EquipmentEventEntity> rows,
+        CancellationToken cancellationToken)
     {
-        return new EquipmentEventDto(
-            entity.Id,
-            entity.EquipmentId,
-            entity.CityId,
-            entity.Code,
-            EnsureUtc(entity.EventUtcTime),
-            entity.EventLocalTime,
-            entity.NaturalKeyHash);
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        var cityIds = rows.Select(x => x.CityId).Distinct().ToArray();
+        var cityLookup = await _dbContext.Cities
+            .AsNoTracking()
+            .Where(city => cityIds.Contains(city.Id))
+            .ToDictionaryAsync(city => city.Id, city => city.Name, cancellationToken);
+
+        return rows.Select(entity => new EquipmentEventDto(
+                entity.Id,
+                entity.EquipmentId,
+                entity.CityId,
+                cityLookup.TryGetValue(entity.CityId, out var cityName) ? cityName : null,
+                entity.Code,
+                EnsureUtc(entity.EventUtcTime),
+                entity.EventLocalTime,
+                entity.NaturalKeyHash))
+            .ToArray();
     }
 
     private static bool IsUniqueConstraintViolation(DbUpdateException exception)
