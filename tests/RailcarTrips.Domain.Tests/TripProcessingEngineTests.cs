@@ -100,6 +100,30 @@ public class TripProcessingEngineTests
     }
 
     [Fact]
+    public void Process_Other_event_codes_are_ignored_without_anomalies()
+    {
+        var engine = new TripProcessingEngine();
+        var events = new[]
+        {
+            new EquipmentEvent(1, "EQ-6", 10, EventCode.ReleasedW, Utc(2026, 1, 6, 8)),
+            new EquipmentEvent(2, "EQ-6", 11, EventCode.Other, Utc(2026, 1, 6, 9)),
+            new EquipmentEvent(3, "EQ-6", 20, EventCode.PlacedZ, Utc(2026, 1, 6, 12))
+        };
+
+        var result = engine.Process(events);
+
+        Assert.Single(result.Trips);
+        var trip = result.Trips[0];
+        Assert.Equal(TripStatus.Closed, trip.Status);
+        Assert.Equal(10, trip.OriginCityId);
+        Assert.Equal(20, trip.DestinationCityId);
+        Assert.Equal(Utc(2026, 1, 6, 8), trip.StartUtc);
+        Assert.Equal(Utc(2026, 1, 6, 12), trip.EndUtc);
+        Assert.Equal(4m, trip.TotalTripHours);
+        Assert.Equal(0, result.AnomaliesCount);
+    }
+
+    [Fact]
     public void Process_W_without_Z_leaves_open_trip()
     {
         var engine = new TripProcessingEngine();
