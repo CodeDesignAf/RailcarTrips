@@ -1,5 +1,321 @@
 @page "/railcar-trips"
+@inject RailcarTripsApiClient ApiClient
 
 <PageTitle>Railcar Trips</PageTitle>
 
 <h1>Railcar Trips</h1>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Import Equipment Events</h5>
+
+        <div class="mb-3">
+            <InputFile OnChange="OnFileSelected" accept=".csv" disabled="@_isUploading" />
+        </div>
+
+        <button class="btn btn-primary" @onclick="UploadAndProcessAsync" disabled="@(!_canUpload)">
+            @(_isUploading ? "Uploading..." : "Upload & Process")
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(_uploadError))
+        {
+            <div class="alert alert-danger mt-3 mb-0" role="alert">@_uploadError</div>
+        }
+
+        @if (_lastImportResult is not null)
+        {
+            <div class="alert alert-success mt-3 mb-0" role="status">
+                Imported: @_lastImportResult.Imported |
+                Duplicates: @_lastImportResult.Duplicates |
+                Trips Created: @_lastImportResult.TripsCreated |
+                Trips Closed: @_lastImportResult.TripsClosed |
+                Ignored Events: @_lastImportResult.IgnoredEventsCount |
+                Anomalies: @_lastImportResult.AnomaliesCount
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Filters</h5>
+
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-8 col-md-6">
+                <label class="form-label">Equipment Id</label>
+                <input class="form-control"
+                       @bind="_equipmentIdFilter"
+                       @bind:event="oninput"
+                       placeholder="Optional equipment id" />
+            </div>
+            <div class="col-sm-4 col-md-2">
+                <button class="btn btn-outline-primary w-100"
+                        @onclick="RefreshTripsAsync"
+                        disabled="@_isLoadingTrips">
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Trips</h5>
+            <span class="text-muted">Total: @_tripsPage.TotalCount</span>
+        </div>
+
+        @if (_isLoadingTrips)
+        {
+            <p class="text-muted mb-0">Loading trips...</p>
+        }
+        else if (!string.IsNullOrWhiteSpace(_tripsError))
+        {
+            <div class="alert alert-danger mb-0" role="alert">@_tripsError</div>
+        }
+        else if (_tripsPage.Items.Count == 0)
+        {
+            <p class="text-muted mb-0">No trips found for the current filter.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Equipment Id</th>
+                            <th>Origin</th>
+                            <th>Destination</th>
+                            <th>Start (UTC)</th>
+                            <th>End (UTC)</th>
+                            <th>Hours</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var trip in _tripsPage.Items)
+                        {
+                            <tr class="@GetTripRowCss(trip.Id)" @onclick="() => SelectTripAsync(trip.Id)">
+                                <td>@trip.EquipmentId</td>
+                                <td>@trip.Origin</td>
+                                <td>@trip.Destination</td>
+                                <td>@FormatUtcDateTime(trip.StartUtc)</td>
+                                <td>@FormatTripEndUtc(trip.EndUtc)</td>
+                                <td>@FormatTripHours(trip.TotalTripHours, trip.EndUtc)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button class="btn btn-outline-secondary"
+                        @onclick="PreviousPageAsync"
+                        disabled="@(_isLoadingTrips || _tripsPage.Page <= 1)">
+                    Prev
+                </button>
+                <button class="btn btn-outline-secondary"
+                        @onclick="NextPageAsync"
+                        disabled="@(_isLoadingTrips || !HasNextPage)">
+                    Next
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@if (_selectedTripId is not null)
+{
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Trip Events (Trip #@_selectedTripId)</h5>
+
+            @if (_isLoadingEvents)
+            {
+                <p class="text-muted mb-0">Loading events...</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(_eventsError))
+            {
+                <div class="alert alert-danger mb-0" role="alert">@_eventsError</div>
+            }
+            else if (_tripEvents.Count == 0)
+            {
+                <p class="text-muted mb-0">No events found for this trip.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Equipment Id</th>
+                                <th>City</th>
+                                <th>Event Code</th>
+                                <th>Event UTC (UTC)</th>
+                                <th>Event Local (Local)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _tripEvents.OrderBy(e => e.EventUtcTime))
+                            {
+                                <tr>
+                                    <td>@item.Id</td>
+                                    <td>@item.EquipmentId</td>
+                                    <td>@FormatCity(item.CityName, item.CityId)</td>
+                                    <td>@item.EventCode</td>
+                                    <td>@FormatUtcDateTime(item.EventUtcTime)</td>
+                                    <td>@FormatLocalDateTime(item.EventLocalTime)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private const int PageSize = 20;
+
+    private IBrowserFile? _selectedFile;
+    private bool _isUploading;
+    private string? _uploadError;
+    private ImportResultDto? _lastImportResult;
+
+    private bool _isLoadingTrips = true;
+    private string? _tripsError;
+    private string _equipmentIdFilter = string.Empty;
+    private PagedResult<TripGridRowDto> _tripsPage = new(1, PageSize, 0, Array.Empty<TripGridRowDto>());
+
+    private long? _selectedTripId;
+    private bool _isLoadingEvents;
+    private string? _eventsError;
+    private IReadOnlyList<EquipmentEventDto> _tripEvents = Array.Empty<EquipmentEventDto>();
+
+    private bool _canUpload => _selectedFile is not null && !_isUploading;
+    private bool HasNextPage => _tripsPage.Page * _tripsPage.PageSize < _tripsPage.TotalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTripsAsync(1);
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        _selectedFile = args.File;
+        _uploadError = null;
+    }
+
+    private async Task UploadAndProcessAsync()
+    {
+        if (_selectedFile is null)
+        {
+            _uploadError = "Select a CSV file first.";
+            return;
+        }
+
+        _isUploading = true;
+        _uploadError = null;
+
+        try
+        {
+            _lastImportResult = await ApiClient.ImportEquipmentEventsAsync(_selectedFile, CancellationToken.None);
+            await LoadTripsAsync(1);
+        }
+        catch (Exception ex)
+        {
+            _uploadError = ex.Message;
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
+    private async Task RefreshTripsAsync()
+    {
+        await LoadTripsAsync(1);
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (_tripsPage.Page <= 1)
+        {
+            return;
+        }
+
+        await LoadTripsAsync(_tripsPage.Page - 1);
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (!HasNextPage)
+        {
+            return;
+        }
+
+        await LoadTripsAsync(_tripsPage.Page + 1);
+    }
+
+    private async Task LoadTripsAsync(int page)
+    {
+        _isLoadingTrips = true;
+        _tripsError = null;
+
+        try
+        {
+            _tripsPage = await ApiClient.GetTripsAsync(page, PageSize, _equipmentIdFilter, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _tripsError = ex.Message;
+            _tripsPage = new PagedResult<TripGridRowDto>(page, PageSize, 0, Array.Empty<TripGridRowDto>());
+        }
+        finally
+        {
+            _isLoadingTrips = false;
+        }
+    }
+
+    private async Task SelectTripAsync(long tripId)
+    {
+        _selectedTripId = tripId;
+        _isLoadingEvents = true;
+        _eventsError = null;
+        _tripEvents = Array.Empty<EquipmentEventDto>();
+
+        try
+        {
+            _tripEvents = await ApiClient.GetTripEventsAsync(tripId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _eventsError = ex.Message;
+        }
+        finally
+        {
+            _isLoadingEvents = false;
+        }
+    }
+
+    private string GetTripRowCss(long tripId) => _selectedTripId == tripId ? "table-primary" : string.Empty;
+
+    private static string FormatUtcDateTime(DateTime value) =>
+        $"{value.ToUniversalTime():yyyy-MM-dd HH:mm:ss}Z";
+
+    private static string FormatTripEndUtc(DateTime? value) =>
+        value.HasValue ? FormatUtcDateTime(value.Value) : "-";
+
+    private static string FormatLocalDateTime(DateTime? value) =>
+        value.HasValue ? value.Value.ToString("yyyy-MM-dd HH:mm:ss") : "-";
+
+    private static string FormatTripHours(decimal? value, DateTime? endUtc) =>
+        endUtc.HasValue && value.HasValue
+            ? value.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+            : "-";
+
+    private static string FormatCity(string? cityName, int cityId) =>
+        string.IsNullOrWhiteSpace(cityName) ? $"City #{cityId}" : cityName;
+}
