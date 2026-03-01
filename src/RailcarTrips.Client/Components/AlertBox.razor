@@ -1,0 +1,13 @@
+<div class="@CssClass" role="alert">
+    @Message
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Severity { get; set; } = "danger";
+
+    private string CssClass => $"alert alert-{Severity} mb-0";
+}

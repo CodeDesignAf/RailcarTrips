@@ -1,0 +1,12 @@
+<div class="stat-card">
+    <div class="stat-label">@Label</div>
+    <div class="stat-value">@Value</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public int Value { get; set; }
+}
