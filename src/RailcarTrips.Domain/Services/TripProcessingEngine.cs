@@ -57,9 +57,12 @@ public class TripProcessingEngine
                         }
                         break;
 
+                    case EventCode.Other:
+                        // Non-trip event codes are intentionally ignored.
+                        break;
+
                     default:
-                        result.AddAnomaly(
-                            $"Equipment {equipmentEvent.EquipmentId}: Unsupported event code {equipmentEvent.Code}.");
+                        // Unknown enum values should not affect trip state.
                         break;
                 }
             }
