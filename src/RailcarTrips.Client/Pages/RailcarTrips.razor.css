@@ -3,6 +3,19 @@
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.file-picker-btn {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.file-picker-btn i {
+    font-size: 1.1rem;
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -31,11 +44,34 @@
 
 .trips-table thead th,
 .events-table thead th {
-    position: sticky;
-    top: 0;
     z-index: 1;
     background: #f8fafc;
     white-space: nowrap;
+}
+
+.trips-table thead tr:first-child th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+.trips-table thead tr.filters-row th {
+    position: sticky;
+    top: 2.2rem;
+    z-index: 2;
+    background: #f8fafc;
+    padding-top: 0.25rem;
+    padding-bottom: 0.5rem;
+}
+
+.trips-table thead tr.filters-row input {
+    max-width: 220px;
+}
+
+.events-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
 }
 
 .trips-table tbody tr:nth-child(even),
@@ -53,8 +89,21 @@
 }
 
 .trips-table tbody tr.selected-row {
-    background: #e2ecff !important;
-    box-shadow: inset 3px 0 0 #2b6ce9;
+    background: #d7e6ff !important;
+    outline: 2px solid #2b6ce9;
+    outline-offset: -2px;
+}
+
+.trips-table tbody tr.selected-row td {
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: #ff3b30;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+}
+
+.trips-table tbody tr.selected-row:hover {
+    background: #d7e6ff !important;
 }
 
 .empty-state {
@@ -65,9 +114,3 @@
     padding: 1rem;
 }
 
-@media (min-width: 992px) {
-    .events-panel {
-        position: sticky;
-        top: 1rem;
-    }
-}
