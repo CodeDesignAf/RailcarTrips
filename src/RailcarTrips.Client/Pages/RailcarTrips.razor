@@ -10,7 +10,14 @@
         <h5 class="card-title mb-3">Import Equipment Events</h5>
 
         <div class="d-flex flex-column flex-md-row gap-3 align-items-md-center">
-            <InputFile OnChange="OnFileSelected" accept=".csv" disabled="@_isUploading" />
+            <label class="@FilePickerButtonCss">
+                <span class="bi bi-upload" aria-hidden="true"></span>
+                <InputFile OnChange="OnFileSelected"
+                           accept=".csv"
+                           disabled="@_isUploading"
+                           class="d-none" />
+            </label>
+            <span class="small text-muted">@( _selectedFile?.Name ?? "No file selected" )</span>
             <button class="btn btn-primary" @onclick="UploadAndProcessAsync" disabled="@(!_canUpload)">
                 @if (_isUploading)
                 {
@@ -45,161 +52,170 @@
     </div>
 }
 
-<div class="row g-4">
-    <div class="col-12 col-lg-8">
-        <div class="card section-card mb-4">
-            <div class="card-body">
-                <h5 class="card-title mb-3">Filters</h5>
-
-                <div class="row g-2 align-items-end">
-                    <div class="col-sm-8">
-                        <label class="form-label">Equipment Id</label>
-                        <input class="form-control"
-                               @bind="_equipmentIdFilter"
-                               @bind:event="oninput"
-                               placeholder="Optional equipment id" />
-                    </div>
-                    <div class="col-sm-4">
-                        <button class="btn btn-outline-primary w-100"
-                                @onclick="RefreshTripsAsync"
-                                disabled="@_isLoadingTrips">
-                            Refresh
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card section-card">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="card-title mb-0">Trips</h5>
-                    <span class="text-muted">Total: @_tripsPage.TotalCount</span>
-                </div>
-
+<div class="card section-card">
+    <div class="card-body d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">
+                Trips
                 @if (_isLoadingTrips)
                 {
-                    <p class="text-muted mb-0">Loading trips...</p>
+                    <span class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>
                 }
-                else if (!string.IsNullOrWhiteSpace(_tripsError))
-                {
-                    <AlertBox Message="@_tripsError" Severity="danger" />
-                }
-                else if (_tripsPage.Items.Count == 0)
-                {
-                    <div class="empty-state">
-                        No trips found for the current filter.
-                    </div>
-                }
-                else
-                {
-                    <div class="table-responsive trips-table-wrap">
-                        <table class="table table-sm align-middle trips-table">
-                            <thead>
-                                <tr>
-                                    <th>Equipment Id</th>
-                                    <th>Origin</th>
-                                    <th>Destination</th>
-                                    <th>Start (UTC)</th>
-                                    <th>End (UTC)</th>
-                                    <th>Hours</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var trip in _tripsPage.Items)
-                                {
-                                    <tr class="@GetTripRowCss(trip.Id)" @onclick="() => SelectTripAsync(trip.Id)">
-                                        <td>@trip.EquipmentId</td>
-                                        <td>@trip.Origin</td>
-                                        <td>@trip.Destination</td>
-                                        <td>@FormatUtcDateTime(trip.StartUtc)</td>
-                                        <td>@FormatTripEndUtc(trip.EndUtc)</td>
-                                        <td>@FormatTripHours(trip.TotalTripHours, trip.EndUtc)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="d-flex justify-content-end gap-2 mt-3">
-                        <button class="btn btn-outline-secondary"
-                                @onclick="PreviousPageAsync"
-                                disabled="@(_isLoadingTrips || _tripsPage.Page <= 1)">
-                            Prev
-                        </button>
-                        <button class="btn btn-outline-secondary"
-                                @onclick="NextPageAsync"
-                                disabled="@(_isLoadingTrips || !HasNextPage)">
-                            Next
-                        </button>
-                    </div>
-                }
-            </div>
+            </h5>
+            <span class="text-muted">Total: @_tripsPage.TotalCount</span>
         </div>
+
+        @if (!string.IsNullOrWhiteSpace(_tripsError))
+        {
+            <AlertBox Message="@_tripsError" Severity="danger" />
+        }
+        else
+        {
+            <div class="table-responsive trips-table-wrap">
+                <table class="table table-sm align-middle trips-table">
+                    <thead>
+                        <tr>
+                            <th>Equipment Id</th>
+                            <th>Origin</th>
+                            <th>Destination</th>
+                            <th>Start (UTC)</th>
+                            <th>End (UTC)</th>
+                            <th>Hours</th>
+                        </tr>
+                        <tr class="filters-row">
+                            <th>
+                                <input class="form-control form-control-sm"
+                                       @bind="_equipmentIdFilterDraft"
+                                       @bind:event="oninput"
+                                       @onkeydown="OnFilterKeyDown"
+                                       placeholder="Filter id" />
+                            </th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th class="text-end">
+                                <div class="d-inline-flex gap-1">
+                                    <button class="btn btn-outline-primary btn-sm"
+                                            @onclick="ApplyFilterAsync"
+                                            disabled="@_isLoadingTrips">
+                                        Apply
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm"
+                                            @onclick="ClearFilterAsync"
+                                            disabled="@_isLoadingTrips">
+                                        Clear
+                                    </button>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_isLoadingTrips)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-muted">Loading...</td>
+                            </tr>
+                        }
+                        else if (_tripsPage.Items.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-muted">No trips found.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var trip in _tripsPage.Items)
+                            {
+                                <tr @key="trip.Id" class="@GetTripRowCss(trip.Id)" @onclick="() => SelectTripAsync(trip.Id)">
+                                    <td>@trip.EquipmentId</td>
+                                    <td>@trip.Origin</td>
+                                    <td>@trip.Destination</td>
+                                    <td>@FormatUtcDateTime(trip.StartUtc)</td>
+                                    <td>@FormatTripEndUtc(trip.EndUtc)</td>
+                                    <td>@FormatTripHours(trip.TotalTripHours, trip.EndUtc)</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button class="btn btn-outline-secondary"
+                        @onclick="PreviousPageAsync"
+                        disabled="@(_isLoadingTrips || _tripsPage.Page <= 1)">
+                    Prev
+                </button>
+                <button class="btn btn-outline-secondary"
+                        @onclick="NextPageAsync"
+                        disabled="@(_isLoadingTrips || !HasNextPage)">
+                    Next
+                </button>
+            </div>
+        }
     </div>
+</div>
 
-    <div class="col-12 col-lg-4">
-        <div class="card section-card events-panel">
-            <div class="card-body">
-                <h5 class="card-title mb-3">
-                    @if (_selectedTripId is null)
-                    {
-                        <span>Trip Events</span>
-                    }
-                    else
-                    {
-                        <span>Trip Events (Trip #@_selectedTripId)</span>
-                    }
-                </h5>
+<div class="card section-card mt-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3">Trip Events</h5>
 
-                @if (_selectedTripId is null)
-                {
-                    <div class="empty-state">Select a trip row to view event details.</div>
-                }
-                else if (_isLoadingEvents)
-                {
-                    <p class="text-muted mb-0">Loading events...</p>
-                }
-                else if (!string.IsNullOrWhiteSpace(_eventsError))
-                {
-                    <AlertBox Message="@_eventsError" Severity="danger" />
-                }
-                else if (_tripEvents.Count == 0)
-                {
-                    <div class="empty-state">No events found for this trip.</div>
-                }
-                else
-                {
-                    <div class="table-responsive events-table-wrap">
-                        <table class="table table-sm align-middle mb-0 events-table">
-                            <thead>
-                                <tr>
-                                    <th>Id</th>
-                                    <th>Equipment Id</th>
-                                    <th>City</th>
-                                    <th>Event Code</th>
-                                    <th>Event UTC (UTC)</th>
-                                    <th>Event Local (Local)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in _tripEvents.OrderBy(e => e.EventUtcTime))
-                                {
-                                    <tr>
-                                        <td>@item.Id</td>
-                                        <td>@item.EquipmentId</td>
-                                        <td>@FormatCity(item.CityName, item.CityId)</td>
-                                        <td>@item.EventCode</td>
-                                        <td>@FormatUtcDateTime(item.EventUtcTime)</td>
-                                        <td>@FormatLocalDateTime(item.EventLocalTime)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
+        @if (_selectedTripId is null)
+        {
+            <p class="text-muted mb-3">Select a trip to see its events.</p>
+        }
+        else
+        {
+            <p class="selected-trip-label mb-3">Selected Trip: #@_selectedTripId - @_selectedTripEquipmentId</p>
+        }
+
+        @if (_selectedTripId is null)
+        {
+            <div class="empty-state">Select a trip to see its events.</div>
+        }
+        else if (_isLoadingEvents)
+        {
+            <p class="text-muted mb-0">Loading events...</p>
+        }
+        else if (!string.IsNullOrWhiteSpace(_eventsError))
+        {
+            <AlertBox Message="@_eventsError" Severity="danger" />
+        }
+        else if (_tripEvents.Count == 0)
+        {
+            <div class="empty-state">No events found for this trip.</div>
+        }
+        else
+        {
+            <div class="table-responsive events-table-wrap">
+                <table class="table table-sm align-middle mb-0 events-table">
+                    <thead>
+                        <tr>
+                            <th>Id</th>
+                            <th>Equipment Id</th>
+                            <th>City</th>
+                            <th>Event Code</th>
+                            <th>Event UTC (UTC)</th>
+                            <th>Event Local (Local)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _tripEvents.OrderBy(e => e.EventUtcTime))
+                        {
+                            <tr>
+                                <td>@item.Id</td>
+                                <td>@item.EquipmentId</td>
+                                <td>@FormatCity(item.CityName, item.CityId)</td>
+                                <td>@item.EventCode</td>
+                                <td>@FormatUtcDateTime(item.EventUtcTime)</td>
+                                <td>@FormatLocalDateTime(item.EventLocalTime)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
-        </div>
+        }
     </div>
 </div>
 
@@ -214,18 +230,23 @@
     private bool _isLoadingTrips = true;
     private string? _tripsError;
     private string _equipmentIdFilter = string.Empty;
+    private string _equipmentIdFilterDraft = string.Empty;
     private PagedResult<TripGridRowDto> _tripsPage = new(1, PageSize, 0, Array.Empty<TripGridRowDto>());
 
     private long? _selectedTripId;
+    private string? _selectedTripEquipmentId;
     private bool _isLoadingEvents;
     private string? _eventsError;
     private IReadOnlyList<EquipmentEventDto> _tripEvents = Array.Empty<EquipmentEventDto>();
 
     private bool _canUpload => _selectedFile is not null && !_isUploading;
     private bool HasNextPage => _tripsPage.Page * _tripsPage.PageSize < _tripsPage.TotalCount;
+    private string FilePickerButtonCss =>
+        _isUploading ? "btn btn-outline-secondary btn-sm mb-0 disabled" : "btn btn-outline-secondary btn-sm mb-0";
 
     protected override async Task OnInitializedAsync()
     {
+        _equipmentIdFilterDraft = _equipmentIdFilter;
         await LoadTripsAsync(1);
     }
 
@@ -261,9 +282,25 @@
         }
     }
 
-    private async Task RefreshTripsAsync()
+    private async Task ApplyFilterAsync()
     {
+        _equipmentIdFilter = _equipmentIdFilterDraft.Trim();
         await LoadTripsAsync(1);
+    }
+
+    private async Task ClearFilterAsync()
+    {
+        _equipmentIdFilterDraft = string.Empty;
+        _equipmentIdFilter = string.Empty;
+        await LoadTripsAsync(1);
+    }
+
+    private async Task OnFilterKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await ApplyFilterAsync();
+        }
     }
 
     private async Task PreviousPageAsync()
@@ -302,6 +339,21 @@
         }
         finally
         {
+            if (_selectedTripId is not null)
+            {
+                var selectedTrip = _tripsPage.Items.FirstOrDefault(t => t.Id == _selectedTripId.Value);
+                if (selectedTrip is null)
+                {
+                    _selectedTripId = null;
+                    _selectedTripEquipmentId = null;
+                    _tripEvents = Array.Empty<EquipmentEventDto>();
+                }
+                else
+                {
+                    _selectedTripEquipmentId = selectedTrip.EquipmentId;
+                }
+            }
+
             _isLoadingTrips = false;
         }
     }
@@ -309,6 +361,8 @@
     private async Task SelectTripAsync(long tripId)
     {
         _selectedTripId = tripId;
+        _selectedTripEquipmentId = _tripsPage.Items.FirstOrDefault(t => t.Id == tripId)?.EquipmentId;
+        StateHasChanged();
         _isLoadingEvents = true;
         _eventsError = null;
         _tripEvents = Array.Empty<EquipmentEventDto>();
