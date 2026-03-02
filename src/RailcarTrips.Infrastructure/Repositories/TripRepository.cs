@@ -74,7 +74,8 @@ public class TripRepository : ITripRepository
         var query = _dbContext.Trips.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(equipmentId))
         {
-            query = query.Where(x => x.EquipmentId == equipmentId.Trim());
+            var normalizedFilter = equipmentId.Trim();
+            query = query.Where(x => EF.Functions.Like(x.EquipmentId, $"%{normalizedFilter}%"));
         }
 
         var total = await query.CountAsync(cancellationToken);
