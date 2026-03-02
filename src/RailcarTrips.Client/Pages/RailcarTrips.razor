@@ -10,8 +10,8 @@
         <h5 class="card-title mb-3">Import Equipment Events</h5>
 
         <div class="d-flex flex-column flex-md-row gap-3 align-items-md-center">
-            <label class="@FilePickerButtonCss">
-                <span class="bi bi-upload" aria-hidden="true"></span>
+            <label class="@FilePickerButtonCss" title="Upload CSV">
+                <i class="bi bi-upload"></i>
                 <InputFile OnChange="OnFileSelected"
                            accept=".csv"
                            disabled="@_isUploading"
@@ -242,7 +242,7 @@
     private bool _canUpload => _selectedFile is not null && !_isUploading;
     private bool HasNextPage => _tripsPage.Page * _tripsPage.PageSize < _tripsPage.TotalCount;
     private string FilePickerButtonCss =>
-        _isUploading ? "btn btn-outline-secondary btn-sm mb-0 disabled" : "btn btn-outline-secondary btn-sm mb-0";
+        _isUploading ? "btn btn-outline-secondary btn-sm mb-0 file-picker-btn disabled" : "btn btn-outline-secondary btn-sm mb-0 file-picker-btn";
 
     protected override async Task OnInitializedAsync()
     {
